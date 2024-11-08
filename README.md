@@ -1,4 +1,3 @@
 # TODO
 
-- Custom CPS.
-- Better spinlock.
+- Elif parando quando usa randomizer.
