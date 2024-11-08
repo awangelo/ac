@@ -3,79 +3,76 @@
 #include <time.h>
 #include <windows.h>
 
-#define MOUSE5 0x06 // Superior
-#define MOUSE4 0x05 // Inferior
-#define TOGGLE_KEY VK_F6
+#include "config.h"
 
-// Estado do toggle
+// Variavel global para alternar o estado entre thread e main
 volatile int is_toggle = 1;
 
-// Thread para alternar o estado do auto clicker
+// Thread para alternar o estado do autoclicker
 DWORD WINAPI ToggleThread() {
     while (1) {
         if (GetAsyncKeyState(TOGGLE_KEY) & 0x8000) {
-            // Alterna o estado.
-            is_toggle = !is_toggle;
-
+            is_toggle = !is_toggle;  // Alterna o estado
             puts(is_toggle ? "on" : "off");
 
             // Aguarda a tecla ser solta
             while (GetAsyncKeyState(TOGGLE_KEY) & 0x8000)
                 ;
-            Sleep(100); // Delay para evitar toggle duplo
+            Sleep(100);  // Debounce
         }
-
-        // Mudar depois?
-        Sleep(10);
+        Sleep(10);  // Mudar depois?
     }
     return 0;
 }
 
+void print_config_keys() {
+    printf("TOGGLE_KEY: 0x%x\n", TOGGLE_KEY);
+    printf("LEFT_CLICK_KEY: 0x%x\n", LEFT_CLICK_KEY);
+    printf("RIGHT_CLICK_KEY: 0x%x\n", RIGHT_CLICK_KEY);
+}
+
 int main() {
     srand(time(NULL));
-    int randomizer = 0;
-    // Intervalo entre cliques
-    int left_interval_ms = 50;
-    int right_interval_ms = 35;
-    // Variacao maxima
-    int left_max_var = 5;
-    int right_max_var = 15;
 
-    // Cria a thread que ira assistir a tecla toggle
+    // Cria a thread para alternar o estado do autoclicker
     HANDLE hThread = CreateThread(NULL, 0, ToggleThread, NULL, 0, NULL);
     if (hThread == NULL) {
         puts("Erro ao criar a thread.");
         return 1;
     }
 
-    puts("Mouse4 = Left Click\nMouse5 = Right Click\nF6 = Toggle");
+    // Cria o evento para alternar o estado do autoclicker
+    HANDLE hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (hEvent == NULL) {
+        puts("Erro ao criar o evento.");
+        return 1;
+    }
+
+    puts("ok");
+    print_config_keys();
 
     while (1) {
         if (is_toggle) {
-            if (GetAsyncKeyState(MOUSE5) & 0x8000) {
+            if (GetAsyncKeyState(LEFT_CLICK_KEY) & 0x8000) {
                 mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
                 mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-
-                randomizer = left_interval_ms +
-                             (rand() % (2 * left_max_var + 1)) - left_max_var;
+                int randomizer = LEFT_INTERVAL_MS +
+                                 (rand() % (2 * LEFT_MAX_VAR + 1)) -
+                                 LEFT_MAX_VAR;
                 Sleep(randomizer);
-            }
-
-            else if (GetAsyncKeyState(MOUSE4) & 0x8000) {
+            } else if (GetAsyncKeyState(RIGHT_CLICK_KEY) & 0x8000) {
                 mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0);
                 mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
-
-                randomizer = right_interval_ms +
-                             (rand() % (2 * right_max_var + 1)) - right_max_var;
-                Sleep(randomizer);
+                Sleep(50);
+            } else {
+                WaitForSingleObject(hEvent, 10);  // Espera por 10 ms ou até que o evento seja sinalizado
             }
-
-            // Mudar depois?
-            Sleep(10);
+        } else {
+            WaitForSingleObject(hEvent, 100);  // Espera por 100 ms ou até que o evento seja sinalizado
         }
     }
 
-    // Nao deve chegar aqui
-    WaitForSingleObject(hThread, INFINITE);
     CloseHandle(hThread);
+    CloseHandle(hEvent);
+    return 0;
 }
